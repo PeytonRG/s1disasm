@@ -156,9 +156,14 @@ UpdateMusic:
 		jsr	PlaySoundID(pc)
 ; loc_71BC8:
 @nonewsound:
-		lea	v_music_dac_track(a6),a5
-		tst.b	(a5)			; Is DAC track playing? (TrackPlaybackControl)
-		bpl.s	@dacdone		; Branch if not
+		tst.b	($FFFFC901).w
+		beq.s	@cont
+		subq.b	#1,($FFFFC901).w
+		
+@cont:
+		lea	$40(a6),a5
+		tst.b	(a5)
+		bpl.s	@dacdone
 		jsr	DACUpdateTrack(pc)
 ; loc_71BD4:
 @dacdone:
