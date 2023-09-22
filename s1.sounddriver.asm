@@ -639,30 +639,25 @@ CycleSoundQueue:
 ; Sound_ChkValue:
 PlaySoundID:
 		moveq	#0,d7
-		move.b	v_sound_id(a6),d7
+		move.b	9(a6),d7
 		beq.w	StopAllSound
-		bpl.s	@locret			; If >= 0, return (not a valid sound, bgm or command)
-		move.b	#$80,v_sound_id(a6)	; reset	music flag
-		; DANGER! Music ends at $93, yet this checks until $9F; attempting to
-		; play sounds $94-$9F will cause a crash! Remove the '+$C' to fix this.
-		; See LevSel_NoCheat for more.
-		cmpi.b	#bgm__Last+$C,d7	; Is this music ($81-$9F)?
-		bls.w	Sound_PlayBGM		; Branch if yes
-		cmpi.b	#sfx__First,d7		; Is this after music but before sfx? (redundant check)
-		blo.w	@locret			; Return if yes
-		cmpi.b	#sfx__Last,d7		; Is this sfx ($A0-$CF)?
-		bls.w	Sound_PlaySFX		; Branch if yes
-		cmpi.b	#spec__First,d7		; Is this after sfx but before special sfx? (redundant check)
-		blo.w	@locret			; Return if yes
-		; DANGER! Special SFXes end at $D0, yet this checks until $DF; attempting to
-		; play sounds $D1-$DF will cause a crash! Remove the '+$10' and change the 'blo' to a 'bls'
-		; and uncomment the two lines below to fix this.
-		cmpi.b	#spec__Last+$10,d7	; Is this special sfx ($D0-$DF)?
-		blo.w	Sound_PlaySpecial	; Branch if yes
-		;cmpi.b	#flg__First,d7		; Is this after special sfx but before $E0?
-		;blo.w	@locret			; Return if yes
-		cmpi.b	#flg__Last,d7		; Is this $E0-$E4?
-		bls.s	Sound_E0toE4		; Branch if yes
+		bpl.s	@locret
+		move.b	#$80,9(a6)	; reset	music flag
+		cmpi.b	#$9F,d7
+		bls.w	Sound_PlayBGM	; music	$81-$9F
+		cmpi.b	#$A0,d7
+		bcs.w	@locret
+		cmpi.b	#$CF,d7
+		bls.w	Sound_A0toCF	; sound	$A0-$CF
+		cmpi.b	#$D0,d7
+		bcs.w	@locret
+		cmpi.b	#$D1,d7
+		bcs.w	Sound_PlaySpecial	; sound	$D0
+		cmp.b	#$DF,d7
+		ble	Sound_D1toDF
+		cmpi.b	#$E4,d7
+		bls.s	Sound_E0toE4	; sound	$E0-$E4
+
 ; locret_71F8C:
 @locret:
 		rts	
@@ -867,7 +862,7 @@ Sound_PlayBGM:
 		lsr.b	#3,d0		; Convert to index
 ; loc_72170:
 @gotchannelindex:
-		lea	SFX_BGMChannelRAM(pc),a0
+		lea	dword_722CC(pc),a0
 		movea.l	(a0,d0.w),a0
 		bset	#2,(a0)		; Set 'SFX is overriding' bit (TrackPlaybackControl)
 ; loc_7217C:
@@ -913,139 +908,171 @@ PSGInitBytes:	dc.b $80, $A0, $C0	; Specifically, these configure writes to the P
 ; ---------------------------------------------------------------------------
 ; Play normal sound effect
 ; ---------------------------------------------------------------------------
-; Sound_A0toCF:
-Sound_PlaySFX:
-		tst.b	f_1up_playing(a6)	; Is 1-up playing?
-		bne.w	@clear_sndprio		; Exit is it is
-		tst.b	v_fadeout_counter(a6)	; Is music being faded out?
-		bne.w	@clear_sndprio		; Exit if it is
-		tst.b	f_fadein_flag(a6)	; Is music being faded in?
-		bne.w	@clear_sndprio		; Exit if it is
-		cmpi.b	#sfx_Ring,d7		; is ring sound	effect played?
-		bne.s	@sfx_notRing		; if not, branch
-		tst.b	v_ring_speaker(a6)	; Is the ring sound playing on right speaker?
-		bne.s	@gotringspeaker		; Branch if not
-		move.b	#sfx_RingLeft,d7	; play ring sound in left speaker
-; loc_721EE:
-@gotringspeaker:
-		bchg	#0,v_ring_speaker(a6)	; change speaker
-; Sound_notB5:
-@sfx_notRing:
-		cmpi.b	#sfx_Push,d7		; is "pushing" sound played?
-		bne.s	@sfx_notPush		; if not, branch
-		tst.b	f_push_playing(a6)	; Is pushing sound already playing?
-		bne.w	@locret			; Return if not
-		move.b	#$80,f_push_playing(a6)	; Mark it as playing
-; Sound_notA7:
-@sfx_notPush:
+Sound_D1toDF:
+		tst.b	$27(a6)
+		bne.w	loc_722C6
+		tst.b	4(a6)
+		bne.w	loc_722C6
+		tst.b	$24(a6)
+		bne.w	loc_722C6
+		clr.b	($FFFFC900).w
+		cmp.b	#$D1,d7		; is this the Spin Dash sound?
+		bne.s	@cont3	; if not, branch
+		move.w	d0,-(sp)
+		move.b	($FFFFC902).w,d0	; store extra frequency
+		tst.b	($FFFFC901).w	; is the Spin Dash timer active?
+		bne.s	@cont1		; if it is, branch
+		move.b	#-1,d0		; otherwise, reset frequency (becomes 0 on next line)
+		
+@cont1:
+		addq.b	#1,d0
+		cmp.b	#$C,d0		; has the limit been reached?
+		bcc.s	@cont2		; if it has, branch
+		move.b	d0,($FFFFC902).w	; otherwise, set new frequency
+		
+@cont2:
+		move.b	#1,($FFFFC900).w	; set flag
+		move.b	#60,($FFFFC901).w	; set timer
+		move.w	(sp)+,d0
+		
+@cont3:
 		movea.l	(Go_SoundIndex).l,a0
-		subi.b	#sfx__First,d7		; Make it 0-based
-		lsl.w	#2,d7			; Convert sfx ID into index
-		movea.l	(a0,d7.w),a3		; SFX data pointer
+		sub.b	#$A1,d7
+		bra	SoundEffects_Common
+
+Sound_A0toCF:				; XREF: Sound_ChkValue
+		tst.b	$27(a6)
+		bne.w	loc_722C6
+		tst.b	4(a6)
+		bne.w	loc_722C6
+		tst.b	$24(a6)
+		bne.w	loc_722C6
+		clr.b	($FFFFC900).w
+		cmpi.b	#$B5,d7		; is ring sound	effect played?
+		bne.s	Sound_notB5	; if not, branch
+		tst.b	$2B(a6)
+		bne.s	loc_721EE
+		move.b	#$CE,d7		; play ring sound in left speaker
+
+loc_721EE:
+		bchg	#0,$2B(a6)	; change speaker
+
+Sound_notB5:
+		cmpi.b	#$A7,d7		; is "pushing" sound played?
+		bne.s	Sound_notA7	; if not, branch
+		tst.b	$2C(a6)
+		bne.w	locret_722C4
+		move.b	#$80,$2C(a6)
+
+Sound_notA7:
+		movea.l	(Go_SoundIndex).l,a0
+		subi.b	#$A0,d7
+SoundEffects_Common:		
+		lsl.w	#2,d7
+		movea.l	(a0,d7.w),a3
 		movea.l	a3,a1
 		moveq	#0,d1
-		move.w	(a1)+,d1		; Voice pointer
-		add.l	a3,d1			; Relative pointer
-		move.b	(a1)+,d5		; Dividing timing
-		; DANGER! there is a missing 'moveq	#0,d7' here, without which SFXes whose
-		; index entry is above $3F will cause a crash. This is actually the same way that
-		; this bug is fixed in Ristar's driver.
-		move.b	(a1)+,d7	; Number of tracks (FM + PSG)
+		move.w	(a1)+,d1
+		add.l	a3,d1
+		move.b	(a1)+,d5
+		move.b	(a1)+,d7
 		subq.b	#1,d7
-		moveq	#TrackSz,d6
-; loc_72228:
-@sfx_loadloop:
+		moveq	#$30,d6
+
+loc_72228:
 		moveq	#0,d3
-		move.b	1(a1),d3	; Channel assignment bits
+		move.b	1(a1),d3
 		move.b	d3,d4
-		bmi.s	@sfxinitpsg	; Branch if PSG
-		subq.w	#2,d3		; SFX can only have FM3, FM4 or FM5
+		bmi.s	loc_72244
+		subq.w	#2,d3
 		lsl.w	#2,d3
-		lea	SFX_BGMChannelRAM(pc),a5
+		lea	dword_722CC(pc),a5
 		movea.l	(a5,d3.w),a5
-		bset	#2,(a5)		; Mark music track as being overridden (TrackPlaybackControl)
-		bra.s	@sfxoverridedone
+		bset	#2,(a5)
+		bra.s	loc_7226E
 ; ===========================================================================
-; loc_72244:
-@sfxinitpsg:
+
+loc_72244:
 		lsr.w	#3,d3
-		lea	SFX_BGMChannelRAM(pc),a5
+		lea	dword_722CC(pc),a5
 		movea.l	(a5,d3.w),a5
-		bset	#2,(a5)			; Mark music track as being overridden (TrackPlaybackControl)
-		cmpi.b	#$C0,d4			; Is this PSG 3?
-		bne.s	@sfxoverridedone	; Branch if not
+		bset	#2,(a5)
+		cmpi.b	#$C0,d4
+		bne.s	loc_7226E
 		move.b	d4,d0
-		ori.b	#$1F,d0			; Command to silence PSG 3
-		move.b	d0,(psg_input).l
-		bchg	#5,d0			; Command to silence noise channel
-		move.b	d0,(psg_input).l
-; loc_7226E:
-@sfxoverridedone:
-		movea.l	SFX_SFXChannelRAM(pc,d3.w),a5
+		ori.b	#$1F,d0
+		move.b	d0,($C00011).l
+		bchg	#5,d0
+		move.b	d0,($C00011).l
+
+loc_7226E:
+		lea	dword_722EC(pc),a5
+		movea.l	(a5,d3.w),a5
 		movea.l	a5,a2
-		moveq	#(TrackSz/4)-1,d0	; $30 bytes
-; loc_72276:
-@clearsfxtrackram:
+		moveq	#$B,d0
+
+loc_72276:
 		clr.l	(a2)+
-		dbf	d0,@clearsfxtrackram
+		dbf	d0,loc_72276
 
-		move.w	(a1)+,(a5)			; Initial playback control bits (TrackPlaybackControl)
-		move.b	d5,TrackTempoDivider(a5)	; Initial voice control bits
+		move.w	(a1)+,(a5)
+		move.b	d5,2(a5)
 		moveq	#0,d0
-		move.w	(a1)+,d0			; Track data pointer
-		add.l	a3,d0				; Relative pointer
-		move.l	d0,TrackDataPointer(a5)	; Store track pointer
-		move.w	(a1)+,TrackTranspose(a5)	; load FM/PSG channel modifier
-		move.b	#1,TrackDurationTimeout(a5)	; Set duration of first "note"
-		move.b	d6,TrackStackPointer(a5)	; set "gosub" (coord flag $F8) stack init value
-		tst.b	d4				; Is this a PSG channel?
-		bmi.s	@sfxpsginitdone			; Branch if yes
-		move.b	#$C0,TrackAMSFMSPan(a5)	; AMS/FMS/Panning
-		move.l	d1,TrackVoicePtr(a5)		; Voice pointer
-; loc_722A8:
-@sfxpsginitdone:
-		dbf	d7,@sfx_loadloop
+		move.w	(a1)+,d0
+		add.l	a3,d0
+		move.l	d0,4(a5)
+		move.w	(a1)+,8(a5)
+		tst.b	($FFFFC900).w	; is the Spin Dash sound playing?
+		beq.s	@cont		; if not, branch
+		move.w	d0,-(sp)
+		move.b	($FFFFC902).w,d0
+		add.b	d0,8(a5)
+		move.w	(sp)+,d0
+		
+@cont:
+		move.b	#1,$E(a5)
+		move.b	d6,$D(a5)
+		tst.b	d4
+		bmi.s	loc_722A8
+		move.b	#$C0,$A(a5)
+		move.l	d1,$20(a5)
 
-		tst.b	v_sfx_fm4_track+TrackPlaybackControl(a6)	; Is special SFX being played?
-		bpl.s	@doneoverride					; Branch if not
-		bset	#2,v_spcsfx_fm4_track+TrackPlaybackControl(a6)	; Set 'SFX is overriding' bit
-; loc_722B8:
-@doneoverride:
-		tst.b	v_sfx_psg3_track+TrackPlaybackControl(a6)	; Is SFX being played?
-		bpl.s	@locret						; Branch if not
-		bset	#2,v_spcsfx_psg3_track+TrackPlaybackControl(a6)	; Set 'SFX is overriding' bit
-; locret_722C4:
-@locret:
+loc_722A8:
+		dbf	d7,loc_72228
+
+		tst.b	$250(a6)
+		bpl.s	loc_722B8
+		bset	#2,$340(a6)
+
+loc_722B8:
+		tst.b	$310(a6)
+		bpl.s	locret_722C4
+		bset	#2,$370(a6)
+
+locret_722C4:
 		rts	
 ; ===========================================================================
-; loc_722C6:
-@clear_sndprio:
-		clr.b	v_sndprio(a6)	; Clear priority
+
+loc_722C6:
+		clr.b	0(a6)
 		rts	
 ; ===========================================================================
-; ---------------------------------------------------------------------------
-; RAM addresses for FM and PSG channel variables used by the SFX
-; ---------------------------------------------------------------------------
-; dword_722CC: BGMChannelRAM:
-SFX_BGMChannelRAM:
-		dc.l (v_snddriver_ram+v_music_fm3_track)&$FFFFFF
+dword_722CC:	dc.l $FFF0D0
 		dc.l 0
-		dc.l (v_snddriver_ram+v_music_fm4_track)&$FFFFFF
-		dc.l (v_snddriver_ram+v_music_fm5_track)&$FFFFFF
-		dc.l (v_snddriver_ram+v_music_psg1_track)&$FFFFFF
-		dc.l (v_snddriver_ram+v_music_psg2_track)&$FFFFFF
-		dc.l (v_snddriver_ram+v_music_psg3_track)&$FFFFFF	; Plain PSG3
-		dc.l (v_snddriver_ram+v_music_psg3_track)&$FFFFFF	; Noise
-; dword_722EC: SFXChannelRAM:
-SFX_SFXChannelRAM:
-		dc.l (v_snddriver_ram+v_sfx_fm3_track)&$FFFFFF
+		dc.l $FFF100
+		dc.l $FFF130
+		dc.l $FFF190
+		dc.l $FFF1C0
+		dc.l $FFF1F0
+		dc.l $FFF1F0
+dword_722EC:	dc.l $FFF220
 		dc.l 0
-		dc.l (v_snddriver_ram+v_sfx_fm4_track)&$FFFFFF
-		dc.l (v_snddriver_ram+v_sfx_fm5_track)&$FFFFFF
-		dc.l (v_snddriver_ram+v_sfx_psg1_track)&$FFFFFF
-		dc.l (v_snddriver_ram+v_sfx_psg2_track)&$FFFFFF
-		dc.l (v_snddriver_ram+v_sfx_psg3_track)&$FFFFFF	; Plain PSG3
-		dc.l (v_snddriver_ram+v_sfx_psg3_track)&$FFFFFF	; Noise
+		dc.l $FFF250
+		dc.l $FFF280
+		dc.l $FFF2B0
+		dc.l $FFF2E0
+		dc.l $FFF310
+		dc.l $FFF310
 ; ===========================================================================
 ; ---------------------------------------------------------------------------
 ; Play GHZ waterfall sound
@@ -1185,7 +1212,7 @@ StopSFX:
 @getfmpointer:
 		subq.b	#2,d3		; SFX only has FM3 and up
 		lsl.b	#2,d3
-		lea	SFX_BGMChannelRAM(pc),a0
+		lea	dword_722CC(pc),a0
 		movea.l	a5,a3
 		movea.l	(a0,d3.w),a5
 		movea.l	v_voice_ptr(a6),a1	; Get music voice pointer
@@ -1207,7 +1234,7 @@ StopSFX:
 		cmpi.b	#$C0,d3			; Is this PSG 3?
 		beq.s	@gotpsgpointer		; Branch if yes
 		lsr.b	#3,d3
-		lea	SFX_BGMChannelRAM(pc),a0
+		lea	dword_722CC(pc),a0
 		movea.l	(a0,d3.w),a0
 ; loc_7245A:
 @gotpsgpointer:
@@ -2381,7 +2408,7 @@ cfStopTrack:
 		moveq	#0,d0
 		move.b	TrackVoiceControl(a5),d0 ; Get voice control bits
 		bmi.s	@getpsgptr		; Branch if PSG
-		lea	SFX_BGMChannelRAM(pc),a0
+		lea	dword_722CC(pc),a0
 		movea.l	a5,a3
 		cmpi.b	#4,d0			; Is this FM4?
 		bne.s	@getpointer		; Branch if not
@@ -2421,7 +2448,7 @@ cfStopTrack:
 		beq.s	@gotchannelptr	; Branch if yes
 ; loc_72DE0:
 @getchannelptr:
-		lea	SFX_BGMChannelRAM(pc),a0
+		lea	dword_722CC(pc),a0
 		lsr.b	#3,d0
 		movea.l	(a0,d0.w),a0
 ; loc_72DEA:
@@ -2611,6 +2638,7 @@ ptr_sndCC:	dc.l SoundCC
 ptr_sndCD:	dc.l SoundCD
 ptr_sndCE:	dc.l SoundCE
 ptr_sndCF:	dc.l SoundCF
+ptr_sndD1:	dc.l SoundD1
 ptr_sndend
 
 ; ---------------------------------------------------------------------------
@@ -2724,6 +2752,8 @@ SoundCF:	incbin	"sound/sfx/SndCF - Signpost.bin"
 ; Special sound effect data
 ; ---------------------------------------------------------------------------
 SoundD0:	incbin	"sound/sfx/SndD0 - Waterfall.bin"
+		even
+SoundD1:	incbin	"sound/sfx/SndD1 - Spindash.bin"
 		even
 
 ; ---------------------------------------------------------------------------

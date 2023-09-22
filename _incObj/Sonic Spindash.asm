@@ -14,7 +14,7 @@ Sonic_SpinDash:
 		andi.b	#$70,d0			; pressing A/B/C ?
 		beq.w	locret2_1AC8C		; if not, return
 		move.b	#id_Spindash,obAnim(a0)		; set Spin Dash anim (9 in s2)
-		move.w	#$BE,d0			; spin sound ($E0 in s2)
+		move.w	#$D1,d0			; spin sound ($E0 in s2)
 		jsr	(PlaySound_Special).l	; play spin sound
 		addq.l	#4,sp			; Add 4 bytes to the stack return address to skip Sonic_Jump on next rts to Obj01_MdNormal, preventing conflicts with button presses.
 		move.b	#1,f_spindash(a0)		; set Spin Dash flag
@@ -32,6 +32,7 @@ locret2_1AC8C:
 ; ---------------------------------------------------------------------------
 
 loc2_1AC8E:
+		move.b	#$1F,$1C(a0)
 		move.b	(v_jpadhold2).w,d0	; read controller
 		btst	#1,d0			; check down button
 		bne.w	loc2_1AD30		; if set, branch
@@ -88,7 +89,7 @@ loc2_1AD48:
 		andi.b	#$70,d0			; pressing A/B/C?
 		beq.w	loc2_1AD78		; if not, branch
 		move.w	#$1F00,obAnim(a0)	; reset spdsh animation
-		move.w	#$BE,d0			; was $E0 in sonic 2
+		move.w	#$D1,d0			; was $E0 in sonic 2
 		jsr	(PlaySound_Special).l	; play charge sound
 		addi.w	#$200,$3A(a0)		; increase charge count
 		cmpi.w	#$800,$3A(a0)		; check if it's maxed
