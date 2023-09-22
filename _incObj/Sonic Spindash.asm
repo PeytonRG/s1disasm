@@ -20,9 +20,8 @@ Sonic_SpinDash:
 		move.b	#1,f_spindash(a0)		; set Spin Dash flag
 		move.w	#0,$3A(a0)		; set charge count to 0
 		cmpi.b	#$C,$28(a0)		; ??? oxygen remaining?
-		bcs.s	loc2_1AC84		; ??? branch if carry
-		move.b	#2,($FFFFD11C).w	; ??? $D11C is used for
-						; the smoke/dust object
+		move.b	#2,($FFFFD1DC).w	; Set the Spin Dash dust animation to $2.
+
 loc2_1AC84:
 		bsr.w	Sonic_LevelBound
 		bsr.w	Sonic_AnglePos
@@ -58,8 +57,9 @@ loc2_1AC8E:
 
 loc2_1ACF4:
 		bset	#2,$22(a0)		; set unused (in s1) flag
-		move.b	#0,($FFFFD11C).w	; clear $D11C (smoke)
+		move.b	#0,($FFFFD1DC).w	; clear Spin Dash dust animation.
 		move.w	#$BC,d0			; spin release sound
+		move.b	#2,$FFFFD1DC.w	; Set the Spin Dash dust animation to $2.
 		jsr	(PlaySound_Special).l	; play it!
 		bra.s	loc2_1AD78
 ; ===========================================================================

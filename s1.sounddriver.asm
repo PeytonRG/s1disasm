@@ -2775,3 +2775,5 @@ SegaPCM_End
 			inform 3,"Size_of_SegaPCM = $%h, but you have a $%h byte Sega sound.",Size_of_SegaPCM,SegaPCM_End-SegaPCM
 		endc
 
+Art_Dust	incbin	"artunc/spindust.bin"
+
