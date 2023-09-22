@@ -1321,7 +1321,6 @@ RunPLC:
 
 loc_160E:
 		andi.w	#$7FFF,d2
-		move.w	d2,(f_plc_execute).w
 		bsr.w	NemDec_BuildCodeTable
 		move.b	(a0)+,d5
 		asl.w	#8,d5
@@ -1335,6 +1334,7 @@ loc_160E:
 		move.l	d0,($FFFFF6EC).w
 		move.l	d5,($FFFFF6F0).w
 		move.l	d6,($FFFFF6F4).w
+		move.w	d2,(f_plc_execute).w
 
 Rplc_Exit:
 		rts	
@@ -2396,8 +2396,9 @@ loc_3230:
 		beq.w	Tit_MainLoop	; if not, branch
 
 Tit_ChkLevSel:
-		tst.b	(f_levselcheat).w ; check if level select code is on
-		beq.w	PlayLevel	; if not, play level
+		; Disable the check for the level select code
+		; tst.b	(f_levselcheat).w ; check if level select code is on
+		; beq.w	PlayLevel	; if not, play level
 		btst	#bitA,(v_jpadhold1).w ; check if A is pressed
 		beq.w	PlayLevel	; if not, play level
 
@@ -2428,7 +2429,7 @@ Tit_ChkLevSel:
 ; ---------------------------------------------------------------------------
 
 LevelSelect:
-		move.b	#4,(v_vbla_routine).w
+		move.b	#2,(v_vbla_routine).w
 		bsr.w	WaitForVBla
 		bsr.w	LevSelControls
 		bsr.w	RunPLC
@@ -6338,6 +6339,8 @@ loc_D358:
 ; ===========================================================================
 
 loc_D362:
+		cmpi.b  #$A,(v_player+obRoutine).w      ; Has Sonic drowned?
+        beq.s   loc_D348                        ; If so, run objects a little longer
 		moveq	#$1F,d7
 		bsr.s	loc_D348
 		moveq	#$5F,d7
@@ -7352,6 +7355,7 @@ Sonic_Index:	dc.w Sonic_Main-Sonic_Index
 		dc.w Sonic_Hurt-Sonic_Index
 		dc.w Sonic_Death-Sonic_Index
 		dc.w Sonic_ResetLevel-Sonic_Index
+		dc.w Sonic_Drowned-Sonic_Index
 ; ===========================================================================
 
 Sonic_Main:	; Routine 0
@@ -7533,6 +7537,7 @@ locret_13302:
 		include	"_incObj\Sonic ResetOnFloor.asm"
 		include	"_incObj\Sonic (part 2).asm"
 		include	"_incObj\Sonic Loops.asm"
+		include "_incObj\Sonic Drowns.asm"
 		include	"_incObj\Sonic Animate.asm"
 		include	"_anim\Sonic.asm"
 		include	"_incObj\Sonic LoadGfx.asm"
