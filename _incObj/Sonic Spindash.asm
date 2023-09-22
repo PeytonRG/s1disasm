@@ -50,7 +50,7 @@ loc2_1AC8E:
 		andi.w	#$1F00,d0		; mask it against $1F00
 		neg.w	d0			; negate it
 		addi.w	#$2000,d0		; add $2000
-		move.w	d0,($FFFFEED0).w	; move to $EED0
+		move.w	d0,($FFFFC904).w	; move to $C904
 		btst	#0,$22(a0)		; is sonic facing right?
 		beq.s	loc2_1ACF4		; if not, branch
 		neg.w	obInertia(a0)			; negate inertia
@@ -97,18 +97,18 @@ loc2_1AD48:
 		move.w	#$800,$3A(a0)		; reset it to max
 
 loc2_1AD78:
-		addq.l	#4,sp			; Add 4 bytes to the stack return address to skip Sonic_Jump on next rts to Obj01_MdNormal, preventing conflicts with button presses.
-		cmpi.w	#$60,($FFFFEED8).w	; $EED8 only ever seems
-		beq.s	loc2_1AD8C		; to be used in Spin Dash
+		addq.l	#4,sp			; increase stack ptr
+		cmpi.w	#$60,($FFFFF73E).w
+		beq.s	loc2_1AD8C
 		bcc.s	loc2_1AD88
-		addq.w	#4,($FFFFEED8).w
+		addq.w	#4,($FFFFF73E).w
 
 loc2_1AD88:
-		subq.w	#2,($FFFFEED8).w
+		subq.w	#2,($FFFFF73E).w
 
 loc2_1AD8C:
 		bsr.w	Sonic_LevelBound
 		bsr.w	Sonic_AnglePos
-		move.w	#$60,(v_lookshift).w	; reset looking up/down
+		;move.w	#$60,($FFFFF73E).w	; reset looking up/down
 		rts
 ; End of subroutine Sonic_SpinDash

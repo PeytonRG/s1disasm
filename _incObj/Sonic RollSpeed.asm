@@ -56,7 +56,16 @@ loc_131AA:
 		subq.w	#5,obY(a0)
 
 loc_131CC:
-		move.b	obAngle(a0),d0
+		cmp.w	#$60,($FFFFF73E).w
+		beq.s	@cont2
+		bcc.s	@cont1
+		addq.w	#4,($FFFFF73E).w
+		
+@cont1:
+		subq.w	#2,($FFFFF73E).w
+		
+@cont2:
+		move.b	$26(a0),d0
 		jsr	(CalcSine).l
 		muls.w	obInertia(a0),d0
 		asr.l	#8,d0
